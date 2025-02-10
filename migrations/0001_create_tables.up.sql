@@ -1,0 +1,12 @@
+CREATE TABLE Users (
+    ChatId BIGINT PRIMARY KEY,
+    Tag TEXT NOT NULL,
+    Name TEXT NOT NULL,
+    State INTEGER DEFAULT 1
+);
+
+CREATE TABLE Friends (
+    Id SERIAL PRIMARY KEY,
+    ChatId BIGINT REFERENCES Users(chatId),
+    ScndChatId BIGINT REFERENCES Users(chatId)
+);
