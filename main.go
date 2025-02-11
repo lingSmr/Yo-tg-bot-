@@ -10,7 +10,7 @@ import (
 
 const (
 	db_addr = "postgres://postgres:psql123@localhost:5432/postgres?sslmode=disable"
-	token   = "7192337917:AAGy00sM-djRN6hh2LmmwIg7KL_jBuHc2t0"
+	token   = "7192337917:AAFAu1rQkkVJZZ0Uk_5s2npMwOg5aw35uBU"
 )
 
 func main() {
