@@ -44,6 +44,12 @@ func (s *Server) ListAndServe() {
 			s.DataBase.NewUser(int(chatId), name, update.Message.From.UserName)
 			log.Printf("New User! ChatId : %v . Username : %s", chatId, update.Message.From.UserName)
 		}
+		if err != nil {
+			botMsg := tgAPI.NewMessage(chatId, "Произошла ошибка!\nПоробуйте еще раз")
+			bot.Send(botMsg)
+			log.Print(err)
+			continue
+		}
 
 		state, err := s.DataBase.GetState(int(chatId))
 		if err != nil {
@@ -52,10 +58,8 @@ func (s *Server) ListAndServe() {
 			log.Print(err)
 			continue
 		}
-
 		switch state {
 		case NothingState:
-
 			switch msg {
 			case "🤙Йоу🤙":
 				friendMap, err := s.DataBase.GetFriends(int(chatId))
@@ -77,14 +81,12 @@ func (s *Server) ListAndServe() {
 				}
 				botMsg := tgAPI.NewMessage(chatId, "Йоу!")
 				bot.Send(botMsg)
-
 			case "1":
 				botMsg := tgAPI.NewMessage(chatId, "Пришли мне тэг друга!✍️")
 				botMsg.ReplyMarkup = CancelKeyboard
 				bot.Send(botMsg)
 				s.DataBase.UpdateState(int(chatId), AddFriendState)
 				continue
-
 			case "2":
 				botMsg := tgAPI.NewMessage(chatId, "Пришли мне тэг друга , что уже тебе не друг...")
 				botMsg.ReplyMarkup = CancelKeyboard
@@ -120,15 +122,16 @@ func (s *Server) ListAndServe() {
 				}
 				botMsg := tgAPI.NewMessage(chatId, strBuilder.String())
 				bot.Send(botMsg)
-
+			case MessageToAllPhraze:
+				botMsg := tgAPI.NewMessage(chatId,
+					`Пришли мне то , что ты хочешь отправить всем пользователям.`)
+				botMsg.ReplyMarkup = CancelKeyboard
+				bot.Send(botMsg)
+				s.DataBase.UpdateState(int(chatId), MessageForAllState)
+				continue
 			}
 
-			botMsg := tgAPI.NewMessage(chatId,
-				`Главное меню:
-				1. Добавить друга 🫂
-				2. Удалить друга 👤
-				3. Изменить имя 😶‍🌫️
-				4. Список Друзей 📋`)
+			botMsg := tgAPI.NewMessage(chatId, MainMenuConst)
 			botMsg.ReplyMarkup = NothingStateKeyboard
 			bot.Send(botMsg)
 		case StartState:
@@ -167,6 +170,11 @@ func (s *Server) ListAndServe() {
 				continue
 			}
 			friendTag := strings.ReplaceAll(msg, "@", "")
+			if friendTag == "" {
+				botMsg := tgAPI.NewMessage(chatId, "ты прислал что то не то , попробуй еще раз")
+				bot.Send(botMsg)
+				continue
+			}
 			ok, err := s.DataBase.AddFriend(int(chatId), friendTag)
 			if err != nil || ok == 0 {
 				botMsg := tgAPI.NewMessage(chatId, "Произошла ошибка!\nПоробуйте еще раз")
@@ -227,6 +235,7 @@ func (s *Server) ListAndServe() {
 					4. Список Друзей 📋`)
 				botMsg.ReplyMarkup = NothingStateKeyboard
 				bot.Send(botMsg)
+				s.DataBase.UpdateState(int(chatId), NothingState)
 				continue
 			}
 			err := s.DataBase.UpdateName(int(chatId), msg)
@@ -246,13 +255,38 @@ func (s *Server) ListAndServe() {
 				4. Список Друзей 📋`)
 			botMsg.ReplyMarkup = NothingStateKeyboard
 			bot.Send(botMsg)
+		case MessageForAllState:
+			if msg == "Отмена" {
+				botMsg := tgAPI.NewMessage(chatId, MainMenuConst)
+				botMsg.ReplyMarkup = NothingStateKeyboard
+				bot.Send(botMsg)
+				s.DataBase.UpdateState(int(chatId), NothingState)
+				continue
+			}
+			users, err := s.DataBase.GetAllUsers()
+			if err != nil {
+				botMsg := tgAPI.NewMessage(chatId, "Произошла ошибка!\nПоробуйте еще раз")
+				bot.Send(botMsg)
+				continue
+			}
+			delete(users, int(chatId))
+			go func() {
+				currentChatId := chatId
+				msgIn := msg
+				for user := range users {
+					botMsg := tgAPI.NewMessage(int64(user), msgIn)
+					bot.Send(botMsg)
+				}
+				botMsg := tgAPI.NewMessage(currentChatId, "Сообщение успешно отправленно!")
+				bot.Send(botMsg)
+			}()
 		}
 	}
 }
 
 // отправляет йоу выбранному пользователю. ЧатАйди - кому , имя и тэг - от кого.
 func sendYo(bot tgAPI.BotAPI, chatId int, Name, tag string) {
-	msg := fmt.Sprintf("%s(%s) - 🤙🤙🤙", Name, tag)
+	msg := fmt.Sprintf("%s(@%s) - 🤙🤙🤙", Name, tag)
 	botMsg := tgAPI.NewMessage(int64(chatId), msg)
 	bot.Send(botMsg)
 }

@@ -96,6 +96,23 @@ func (d *DataBase) DelFriend(chatId int, Tag string) (int, error) {
 	return 1, nil
 }
 
+func (d *DataBase) GetAllUsers() (map[int]interface{}, error) {
+	chatIds := make(map[int]interface{})
+	rows, err := d.Pool.Query(context.Background(), `SELECT chatId FROM Users`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var id int
+		err := rows.Scan(&id)
+		if err != nil {
+			return nil, err
+		}
+		chatIds[id] = nil
+	}
+	return chatIds, nil
+}
+
 func (d *DataBase) GetFriends(chatId int) (map[int]interface{}, error) {
 	friends := make(map[int]interface{})
 	rows, err := d.Pool.Query(context.Background(),
