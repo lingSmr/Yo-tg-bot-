@@ -1,3 +1,6 @@
 package main
 
-const MessageToAllPhraze = "MessageToAllThis"
+const (
+	MessageToAllPhraze      = "MessageToAllThis"
+	TakeAllInfoFromBotPraze = "TakeAllInfoFromBot"
+)
