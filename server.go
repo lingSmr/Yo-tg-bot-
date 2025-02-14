@@ -56,71 +56,60 @@ func (s *BotServ) ListAndServe(ctx context.Context) error {
 			continue
 		}
 
-		chatId := update.Message.Chat.ID
+		ID := update.Message.Chat.ID
 		msg := update.Message.Text
 
-		if v, err := s.DataBase.GetState(chatId, ctx); v == 0 || errors.As(err, "no rows") {
+		if v, err := s.DataBase.GetState(ID, ctx); v == 0 || errors.As(err, "no rows") {
 			name := update.Message.From.UserName
-			s.DataBase.NewUser(chatId, name, update.Message.From.UserName, ctx)
-			slog.Info("New User!", "ChatId", chatId, "Username", update.Message.From.UserName)
+			s.DataBase.NewUser(ID, name, update.Message.From.UserName, ctx)
+			slog.Info("New User!", "ChatId", ID, "Username", update.Message.From.UserName)
 		}
 
-		state, err := s.DataBase.GetState(chatId, ctx)
+		state, err := s.DataBase.GetState(ID, ctx)
 		if err != nil {
-			botMsg := tgAPI.NewMessage(chatId, "Произошла ошибка!\nПоробуйте еще раз")
+			botMsg := tgAPI.NewMessage(ID, "Произошла ошибка!\nПоробуйте еще раз")
 			s.Bot.Send(botMsg)
-			slog.Error("Cant take state of user", "Operation", op, "ChatId", chatId, "Error", err)
+			slog.Error("Cant take state of user", "Operation", op, "ChatId", ID, "Error", err)
 			continue
 		}
 
-		switch state {
-		case NothingState:
-			switch msg {
-			case "🤙Йоу🤙":
-				go func(chId int64) { s.yoForAll(chatId) }(chatId)
-				continue
-			case "1":
-				s.updatingToWithCancel(chatId, AddFriendState, "Пришли мне тэг друга!✍️")
-				continue
-			case "2":
-				s.updatingToWithCancel(chatId, DelFriendState, "Пришли мне тэг друга , что уже тебе не друг...")
-				continue
-			case "3":
-				s.updatingToWithCancel(chatId, UpdateNameState, "Пришли мне новое имя✍️")
-				continue
-			case "4":
-				go func(chId int64) { s.allFriends(chatId) }(chatId)
-				continue
-			case MessageToAllPhraze:
-				s.updatingToWithCancel(chatId, MessageForAllState, `Пришли мне то , что ты хочешь отправить всем пользователям.`)
-				continue
-			case TakeAllInfoFromBotPraze:
-				go func(chId int64) { s.sendDocument(chatId, configs.GetLogUrl()) }(chatId)
-				continue
-			default:
-				botMsg := tgAPI.NewMessage(chatId, "Нет такой команды")
-				s.Bot.Send(botMsg)
-				s.returningToMainMenu(s.Bot, s.DataBase, chatId, ctx)
+		go func(chatId int64, msgIn string) {
+			switch state {
+			case NothingState:
+				switch msg {
+				case "🤙Йоу🤙":
+					s.yoForAll(chatId)
+				case "1":
+					s.updatingToWithCancel(chatId, AddFriendState, "Пришли мне тэг друга!✍️")
+				case "2":
+					s.updatingToWithCancel(chatId, DelFriendState, "Пришли мне тэг друга , что уже тебе не друг...")
+				case "3":
+					s.updatingToWithCancel(chatId, UpdateNameState, "Пришли мне новое имя✍️")
+				case "4":
+					go func() { s.allFriends(chatId) }()
+				case MessageToAllPhraze:
+					s.updatingToWithCancel(chatId, MessageForAllState, `Пришли мне то , что ты хочешь отправить всем пользователям.`)
+				case TakeAllInfoFromBotPraze:
+					s.sendDocument(chatId, configs.GetLogUrl())
+				default:
+					botMsg := tgAPI.NewMessage(chatId, "Нет такой команды")
+					s.Bot.Send(botMsg)
+					s.returningToMainMenu(s.Bot, s.DataBase, chatId, ctx)
+				}
+			case StartState:
+				s.startSwitch(chatId)
+			case AskNameState:
+				s.askNameSwtich(chatId, msgIn)
+			case AddFriendState:
+				s.addFriendSwitch(chatId, msgIn)
+			case DelFriendState:
+				s.delFriendSwitch(chatId, msgIn)
+			case UpdateNameState:
+				s.updateNameSwitch(chatId, msgIn)
+			case MessageForAllState:
+				s.msgForAllSwitch(chatId, msgIn)
 			}
-		case StartState:
-			go func(chId int64) { s.startSwitch(chatId) }(chatId)
-			continue
-		case AskNameState:
-			go func(chId int64) { s.askNameSwtich(chatId, msg) }(chatId)
-			continue
-		case AddFriendState:
-			go func(chId int64) { s.addFriendSwitch(chatId, msg) }(chatId)
-			continue
-		case DelFriendState:
-			go func(chId int64) { s.delFriendSwitch(chatId, msg) }(chatId)
-			continue
-		case UpdateNameState:
-			go func(chId int64) { s.updateNameSwitch(chatId, msg) }(chatId)
-			continue
-		case MessageForAllState:
-			go func(chId int64) { s.msgForAllSwitch(chatId, msg) }(chatId)
-			continue
-		}
+		}(ID, msg)
 	}
 	return nil
 }
