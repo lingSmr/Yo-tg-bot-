@@ -86,7 +86,7 @@ func (s *BotServ) ListAndServe(ctx context.Context) error {
 				case "3":
 					s.updatingToWithCancel(chatId, UpdateNameState, "Пришли мне новое имя✍️")
 				case "4":
-					go func() { s.allFriends(chatId) }()
+					s.allFriends(chatId)
 				case MessageToAllPhraze:
 					s.updatingToWithCancel(chatId, MessageForAllState, `Пришли мне то , что ты хочешь отправить всем пользователям.`)
 				case TakeAllInfoFromBotPraze:
