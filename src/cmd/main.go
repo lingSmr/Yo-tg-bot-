@@ -26,25 +26,18 @@ func main() {
 		"Start initing",
 		"Operation", op,
 	)
-	token, ok := os.LookupEnv("TOKEN")
-	if !ok {
-		panic("No TOKEN in .env")
-	}
-	db_addr, ok := os.LookupEnv("POSTGRES_ADDR")
-	if !ok {
-		panic("No DB_ADDR in .env")
-	}
+
 	slog.Debug(
 		"Connecting to database",
 		"Operation", op,
 	)
-	db, err := postgres.NewPostgresDb(db_addr, ctx)
+	db, err := postgres.NewPostgresDb(config.DbAddr, ctx)
 	if err != nil {
 		slog.Error("Cant connect to database", "Operation", op, "Error", err)
 		panic(err)
 	}
 
-	server, err := botServe.NewBotServ(token, db, config.Logger, ctx)
+	server, err := botServe.NewBotServ(config.Token, db, config.Logger, ctx)
 	if err != nil {
 		panic(err)
 	}
