@@ -5,14 +5,12 @@ import (
 	"Yo/src/config"
 	"Yo/src/postgres"
 	"context"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
-
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 func main() {
@@ -20,7 +18,7 @@ func main() {
 	config := config.InitConfig()
 	defer config.LogFile.Close()
 	slog.SetDefault(config.Logger)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 
 	slog.Debug(
 		"Start initing",
@@ -37,7 +35,7 @@ func main() {
 		panic(err)
 	}
 
-	server, err := botServe.NewBotServ(config.Token, db, config.Logger, ctx)
+	server, err := botServe.NewBotServ(config.Token, db, config.Logger)
 	if err != nil {
 		panic(err)
 	}
@@ -54,7 +52,6 @@ func main() {
 	}()
 
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	// Блокировка до получения сигнала
 	select {
 	case <-quit:
 		slog.Info("Take signal to shutdown")
