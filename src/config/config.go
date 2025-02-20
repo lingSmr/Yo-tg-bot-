@@ -44,7 +44,6 @@ func InitConfig() *Config {
 	return &Config{Token: token, DbAddr: dbAddr, Logger: slogger, LogFile: logFile}
 }
 
-// Создает cЛоггер для stdOut и для file.log
 func initLogger(logUrl string) (*slog.Logger, *os.File) {
 	file, err := os.OpenFile(logUrl, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {

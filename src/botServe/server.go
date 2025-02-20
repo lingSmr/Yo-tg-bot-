@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	tgAPI "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/jackc/pgx/v5"
 )
 
 type BotServ struct {
@@ -17,10 +19,10 @@ type BotServ struct {
 	DataBase models.DataBase
 	Bot      *tgAPI.BotAPI
 	UpdChan  tgAPI.UpdatesChannel
-	Ctx      context.Context
+	Ctx      *context.Context
 }
 
-func NewBotServ(Token string, DataBase models.DataBase, logger *slog.Logger, ctx context.Context) (*BotServ, error) {
+func NewBotServ(Token string, DataBase models.DataBase, logger *slog.Logger) (*BotServ, error) {
 	const op = "Botserv:NewBotServ"
 
 	config := config.InitConfig()
@@ -45,7 +47,6 @@ func NewBotServ(Token string, DataBase models.DataBase, logger *slog.Logger, ctx
 		logger:   logger,
 		Bot:      bot,
 		UpdChan:  updates,
-		Ctx:      ctx,
 	}, nil
 }
 
@@ -62,9 +63,13 @@ func (s *BotServ) ListAndServe(ctx context.Context) error {
 		ID := update.Message.Chat.ID
 		msg := update.Message.Text
 
-		if v, err := s.DataBase.GetState(ID, ctx); v == 0 || errors.As(err, "no rows") {
+		if v, err := s.DataBase.GetState(ID, ctx); v == 0 || errors.Is(err, pgx.ErrNoRows) {
 			name := update.Message.From.UserName
-			s.DataBase.NewUser(ID, name, update.Message.From.UserName, ctx)
+			err := s.DataBase.NewUser(ID, name, update.Message.From.UserName, ctx)
+			if err != nil {
+				s.sendErr(ID)
+				continue
+			}
 			slog.Info("New User!", "ChatId", ID, "Username", update.Message.From.UserName)
 		}
 
@@ -76,43 +81,100 @@ func (s *BotServ) ListAndServe(ctx context.Context) error {
 			continue
 		}
 
-		go func(chatId int64, msgIn string) {
+		go func(chatId int64, msgIn string, upd tgAPI.Update) {
+			ctxForSwitch, cancel := context.WithTimeout(context.Background(), time.Second*40)
+			defer cancel()
 			switch state {
 			case consts.NothingState:
 				switch msg {
 				case "🤙Йоу🤙":
-					s.yoForAll(chatId)
+					err := s.yoForAll(chatId, ctxForSwitch)
+					if err != nil {
+						s.sendErr(chatId)
+					}
+				case "":
+					err := s.sendPhotoToFriends(chatId, upd, ctxForSwitch)
+					if err != nil {
+						s.sendErr(chatId)
+					}
 				case "1":
-					s.updatingToWithCancel(chatId, consts.AddFriendState, "Пришли мне тэг друга!✍️")
+					err := s.updatingToWithCancel(chatId, consts.AddFriendState, "Пришли мне тэг друга!✍️", ctxForSwitch)
+					if err != nil {
+						s.sendErr(chatId)
+					}
 				case "2":
-					s.updatingToWithCancel(chatId, consts.DelFriendState, "Пришли мне тэг друга , что уже тебе не друг...")
+					err := s.updatingToWithCancel(chatId, consts.DelFriendState, "Пришли мне тэг друга , что уже тебе не друг...", ctxForSwitch)
+					if err != nil {
+						s.sendErr(chatId)
+					}
 				case "3":
-					s.updatingToWithCancel(chatId, consts.UpdateNameState, "Пришли мне новое имя✍️")
+					err := s.updatingToWithCancel(chatId, consts.UpdateNameState, "Пришли мне новое имя✍️", ctxForSwitch)
+					if err != nil {
+						s.sendErr(chatId)
+					}
 				case "4":
-					s.allFriends(chatId)
+					err := s.allFriends(chatId, ctxForSwitch)
+					if err != nil {
+						s.sendErr(chatId)
+					}
 				case consts.MessageToAllPhraze:
-					s.updatingToWithCancel(chatId, consts.MessageForAllState, `Пришли мне то , что ты хочешь отправить всем пользователям.`)
+					err := s.updatingToWithCancel(chatId, consts.MessageForAllState,
+						`Пришли мне то , что ты хочешь отправить всем пользователям.`, ctxForSwitch)
+					if err != nil {
+						s.sendErr(chatId)
+					}
 				case consts.TakeAllInfoFromBotPraze:
-					s.sendDocument(chatId, config.GetLogUrl())
+					err := s.sendDocument(chatId, config.GetLogUrl(), ctxForSwitch)
+					if err != nil {
+						s.sendErr(chatId)
+					}
 				default:
 					botMsg := tgAPI.NewMessage(chatId, "Нет такой команды")
 					s.Bot.Send(botMsg)
-					s.returningToMainMenu(s.Bot, s.DataBase, chatId, ctx)
+					err := s.returningToMainMenu(s.Bot, s.DataBase, chatId, ctxForSwitch)
+					if err != nil {
+						s.sendErr(chatId)
+						s.logger.Error("Cant return user to main menu", "Operation", op, "ChatId", chatId, "Error", err)
+						return
+					}
 				}
 			case consts.StartState:
-				s.startSwitch(chatId)
+				err := s.startSwitch(chatId, ctxForSwitch)
+				if err != nil {
+					s.sendErr(chatId)
+				}
 			case consts.AskNameState:
-				s.askNameSwtich(chatId, msgIn)
+				err := s.askNameSwtich(chatId, msgIn, ctxForSwitch)
+				if err != nil {
+					s.sendErr(chatId)
+				}
 			case consts.AddFriendState:
-				s.addFriendSwitch(chatId, msgIn)
+				err := s.addFriendSwitch(chatId, msgIn, ctxForSwitch)
+				if err != nil {
+					s.sendErr(chatId)
+				}
 			case consts.DelFriendState:
-				s.delFriendSwitch(chatId, msgIn)
+				err := s.delFriendSwitch(chatId, msgIn, ctxForSwitch)
+				if err != nil {
+					s.sendErr(chatId)
+				}
 			case consts.UpdateNameState:
-				s.updateNameSwitch(chatId, msgIn)
+				err := s.updateNameSwitch(chatId, msgIn, ctxForSwitch)
+				if err != nil {
+					s.sendErr(chatId)
+				}
 			case consts.MessageForAllState:
-				s.msgForAllSwitch(chatId, msgIn)
+				err := s.msgForAllSwitch(chatId, msgIn, ctxForSwitch)
+				if err != nil {
+					s.sendErr(chatId)
+				}
 			}
-		}(ID, msg)
+		}(ID, msg, update)
 	}
 	return nil
+}
+
+func (s *BotServ) sendErr(chatId int64) {
+	botMsg := tgAPI.NewMessage(chatId, "Произошла ошибка!\nПоробуйте еще раз")
+	s.Bot.Send(botMsg)
 }

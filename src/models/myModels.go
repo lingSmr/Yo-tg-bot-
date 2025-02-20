@@ -2,8 +2,6 @@ package models
 
 import "context"
 
-//обращение к таблице friends происходит посредством связи ChatId
-//ChatId выступает в роли primary key , так как у каждого пользователя уникален
 type User struct {
 	ChatId int64
 	Name   string
