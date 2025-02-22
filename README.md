@@ -194,14 +194,15 @@ const (
 2. Установите необходимые зависимости:
    ```bash
    go mod download
-3. Поднимите docker контейнер
+3. Поднимите docker контейнер и примините миграции:
    ```bash
    docker compose up -d
+   migrate -path ./src/cmd/migrations -database "postgres://postgres:psql123@localhost:5432/postgres?sslmode=disable" up
 4. Перейдите в src/cmd, настройте **.env** файл и соберите программу
    ```bash
    cd src/cmd
    nano .env
-   go build -o ""Yo
+   go build -o "Yo"
    ./Yo
    
 
