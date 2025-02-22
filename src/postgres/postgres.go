@@ -26,16 +26,16 @@ func (d PostgresDb) NewUser(chatId int64, userName, tag string, ctx context.Cont
 	defer tx.Rollback(ctx)
 
 	var userExists bool
-	err = tx.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM users WHERE chatid = $1);
-	`, chatId).Scan(&userExists)
+	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE chatid = $1);`,
+		chatId).Scan(&userExists)
 	if err != nil {
 		return err
 	}
 	if userExists {
 		return UserExistsErr
 	}
-	err = d.Pool.QueryRow(context.Background(), `INSERT INTO Users (ChatId, Name ,Tag ) VALUES ($1, $2 , $3);`, chatId, userName, tag).Scan()
+	err = d.Pool.QueryRow(context.Background(), `INSERT INTO Users (ChatId, Name ,Tag ) VALUES ($1, $2 , $3);`,
+		chatId, userName, tag).Scan()
 	if err != nil {
 		return err
 	}

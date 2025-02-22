@@ -65,7 +65,7 @@ func (s *BotServ) ListAndServe(ctx context.Context) error {
 
 		if v, err := s.DataBase.GetState(ID, ctx); v == 0 || errors.Is(err, pgx.ErrNoRows) {
 			name := update.Message.From.UserName
-			err := s.DataBase.NewUser(ID, name, update.Message.From.UserName, ctx)
+			err := s.DataBase.NewUser(ID, name, name, ctx)
 			if err != nil {
 				s.sendErr(ID)
 				continue
@@ -73,7 +73,7 @@ func (s *BotServ) ListAndServe(ctx context.Context) error {
 			slog.Info("New User!", "ChatId", ID, "Username", update.Message.From.UserName)
 		}
 
-		state, err := s.DataBase.GetState(ID, ctx)
+		st, err := s.DataBase.GetState(ID, ctx)
 		if err != nil {
 			botMsg := tgAPI.NewMessage(ID, "Произошла ошибка!\nПоробуйте еще раз")
 			s.Bot.Send(botMsg)
@@ -81,7 +81,7 @@ func (s *BotServ) ListAndServe(ctx context.Context) error {
 			continue
 		}
 
-		go func(chatId int64, msgIn string, upd tgAPI.Update) {
+		go func(chatId int64, msgIn string, upd tgAPI.Update, state int) {
 			ctxForSwitch, cancel := context.WithTimeout(context.Background(), time.Second*40)
 			defer cancel()
 			switch state {
@@ -169,7 +169,7 @@ func (s *BotServ) ListAndServe(ctx context.Context) error {
 					s.sendErr(chatId)
 				}
 			}
-		}(ID, msg, update)
+		}(ID, msg, update, st)
 	}
 	return nil
 }
