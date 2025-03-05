@@ -4,6 +4,8 @@ import (
 	"Yo/src/models"
 	"context"
 	"errors"
+	"time"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -34,8 +36,8 @@ func (d PostgresDb) NewUser(chatId int64, userName, tag string, ctx context.Cont
 	if userExists {
 		return UserExistsErr
 	}
-	err = d.Pool.QueryRow(context.Background(), `INSERT INTO Users (ChatId, Name ,Tag ) VALUES ($1, $2 , $3);`,
-		chatId, userName, tag).Scan()
+	_, err = d.Pool.Exec(context.Background(), `INSERT INTO Users (ChatId, Name ,Tag ) VALUES ($1, $2 , $3);`,
+		chatId, userName, tag)
 	if err != nil {
 		return err
 	}
@@ -298,10 +300,19 @@ func (d PostgresDb) UpdateName(chatId int64, name string, ctx context.Context) e
 }
 
 func NewPostgresDb(Addr string, ctx context.Context) (*PostgresDb, error) {
-	pool, err := pgxpool.New(ctx, Addr)
+	config, err := pgxpool.ParseConfig(Addr)
 	if err != nil {
 		return nil, err
 	}
 
+	config.MaxConns = 40
+	config.MinConns = 4
+	config.MaxConnLifetime = time.Minute * 30
+	config.MaxConnIdleTime = time.Minute * 10
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, err
+	}
 	return &PostgresDb{Pool: pool}, nil
 }

@@ -5,8 +5,6 @@ import (
 	"Yo/src/config"
 	"Yo/src/postgres"
 	"context"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"log/slog"
 	"os"
 	"os/signal"

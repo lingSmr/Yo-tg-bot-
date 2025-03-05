@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	tgAPI "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/jackc/pgx/v5"
 )
 
 func (s *BotServ) updatingToWithCancel(chatId int64, state int, msgToUsr string, ctx context.Context) error {
@@ -94,6 +95,10 @@ func (s *BotServ) addFriendSwitch(chatId int64, msg string, ctx context.Context)
 		botMsg := tgAPI.NewMessage(chatId, "Вы уже дружите!")
 		s.Bot.Send(botMsg)
 		return nil
+	} else if errors.Is(err, pgx.ErrNoRows) {
+		botMsg := tgAPI.NewMessage(chatId, "Такого пользователя не найдено")
+		s.Bot.Send(botMsg)
+		return nil
 	} else if err != nil {
 		s.logger.Error("Cant add friend to user", "Operation", op, "ChatId", chatId, "Error", err)
 		return err
@@ -128,6 +133,10 @@ func (s *BotServ) delFriendSwitch(chatId int64, msg string, ctx context.Context)
 	err := s.DataBase.DelFriend(chatId, friendTag, ctx)
 	if errors.Is(err, postgres.FriendshipDontExistsErr) {
 		botMsg := tgAPI.NewMessage(chatId, "Вы еще не дружите , что бы сорриться🍅")
+		s.Bot.Send(botMsg)
+		return nil
+	} else if errors.Is(err, pgx.ErrNoRows) {
+		botMsg := tgAPI.NewMessage(chatId, "Такого пользователя не найдено")
 		s.Bot.Send(botMsg)
 		return nil
 	} else if err != nil {
